@@ -34,7 +34,7 @@ services:
         sync: false
 
       # Exact origins (https, no trailing slash, no wildcard), comma-separated, e.g.
-      # https://example.com,https://www.example.com,https://admin.example.com
+      # https://chanthans.com,https://www.chanthans.com,https://dashboard.chanthans.com
       - key: ALLOWED_ORIGINS
         sync: false
 
