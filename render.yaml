@@ -1,0 +1,52 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Render dashboard -> New -> Blueprint -> pick this repo. Variables marked `sync: false`
+# are asked for once in the dashboard (never commit real values here).
+services:
+  - type: web
+    name: chanthans-api
+    runtime: docker
+    # Nearest Render region to the Supabase DB (ap-northeast-1, Tokyo). Change if you move the DB.
+    region: singapore
+    # `preDeployCommand` needs a paid plan. On the free plan, remove that line and run
+    # `alembic upgrade head` from your machine whenever the schema changes
+    # (the free plan also sleeps when idle, so the first request can take ~50s).
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    preDeployCommand: alembic upgrade head
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: STORAGE_BACKEND
+        value: r2
+      # Generated once by Render and kept stable across deploys (>= 32 chars).
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "10"
+
+      # Supabase session pooler URL (postgresql://postgres.<ref>:<url-encoded-password>@aws-0-<region>.pooler.supabase.com:5432/postgres)
+      - key: DATABASE_URL
+        sync: false
+
+      # Exact origins (https, no trailing slash, no wildcard), comma-separated, e.g.
+      # https://example.com,https://www.example.com,https://admin.example.com
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+      # Cloudflare R2
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      # Public URL of the bucket, no trailing slash, e.g. https://media.example.com
+      - key: R2_PUBLIC_URL
+        sync: false
