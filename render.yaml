@@ -67,6 +67,13 @@ services:
       # https://api.chanthans.com/api/v1/integrations/google-calendar/callback
       - key: GOOGLE_REDIRECT_URI
         sync: false
+      # "Continue with Google" dashboard sign-in (same OAuth client)
+      # https://api.chanthans.com/api/v1/auth/google/callback
+      - key: GOOGLE_LOGIN_REDIRECT_URI
+        sync: false
+      # Comma-separated allowed Google emails; set in the Render dashboard (not committed)
+      - key: GOOGLE_LOGIN_ALLOWED_EMAILS
+        sync: false
       - key: GOOGLE_CALENDAR_SCOPES
         value: openid email https://www.googleapis.com/auth/calendar.events
       - key: GOOGLE_CALENDAR_DEFAULT_ID
@@ -74,3 +81,32 @@ services:
       # Fernet key; generate once and keep it stable (changing it forces Google to be reconnected).
       - key: TOKEN_ENCRYPTION_KEY
         sync: false
+
+      # Invoices: business identity printed on every invoice and used to pre-fill new ones.
+      - key: BUSINESS_NAME
+        value: Chanthans
+      # Public logo URL (e.g. https://media.chanthans.com/brand/logo.png). Blank = bundled logo.
+      - key: BUSINESS_LOGO_URL
+        sync: false
+      # Use a literal \n for line breaks
+      - key: BUSINESS_ADDRESS
+        value: "9699 Jane St\\nVaughan, ON L6A 3R4\\nCanada"
+      - key: BUSINESS_PHONE
+        value: "+1 437-551-8683"
+      - key: BUSINESS_EMAIL
+        sync: false
+      - key: BUSINESS_WEBSITE
+        sync: false
+      - key: BUSINESS_CURRENCY
+        value: CAD
+      - key: INVOICE_PREFIX
+        value: INV
+      - key: INVOICE_DUE_DAYS
+        value: "14"
+      # Tax is never assumed; set per invoice, or give a studio-wide default here (rate is a percentage).
+      - key: INVOICE_DEFAULT_TAX_NAME
+        sync: false
+      - key: INVOICE_DEFAULT_TAX_RATE
+        value: "0"
+      - key: INVOICE_PAGE_SIZE
+        value: Letter

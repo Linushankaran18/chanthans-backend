@@ -43,6 +43,8 @@ cp .env.example .env                  # then edit
 | `GOOGLE_REDIRECT_URI` | | Must exactly match an authorized redirect URI of the OAuth client. |
 | `GOOGLE_CALENDAR_SCOPES` | `openid email https://www.googleapis.com/auth/calendar.events` | Space-separated OAuth scopes. |
 | `GOOGLE_CALENDAR_DEFAULT_ID` | `primary` | Calendar that receives booking events. |
+| `GOOGLE_LOGIN_REDIRECT_URI` | | Redirect URI for "Continue with Google" dashboard sign-in, e.g. `https://api.chanthans.com/api/v1/auth/google/callback`. |
+| `GOOGLE_LOGIN_ALLOWED_EMAILS` | | Comma-separated Google emails allowed to sign in (case-insensitive). Empty = Google sign-in disabled. |
 | `TOKEN_ENCRYPTION_KEY` | | Fernet key encrypting Google tokens at rest. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 
 Generate a secret: `python -c "import secrets; print(secrets.token_urlsafe(64))"`.
@@ -115,11 +117,23 @@ Swagger UI: http://localhost:8000/docs (disabled when `ENVIRONMENT=production`).
 - Bookings (admin), prefix `/api/v1/admin/bookings`: `GET ""` (filters `status` (repeatable / comma-separated), `search`, `date_from`, `date_to`, `service_type`, `sort` = `date_desc|date_asc|created_desc`, `page`, `page_size` <= 100), `GET /service-types`, `POST ""`, `GET /{id}`, `PUT /{id}`, `PATCH /{id}/status`, `POST /{id}/calendar-sync`, `DELETE /{id}` (204).
   Overlapping CONFIRMED bookings on the same day return `409 {"detail", "code": "booking_conflict", "conflicts": [...]}`. Invalid status transitions return 400.
 - `GET /api/v1/admin/dashboard/summary`
+- Invoices (admin), prefix `/api/v1/admin/invoices`: `GET ""` (filters `status` (repeatable / comma-separated, `OVERDUE` allowed), `overdue`, `search` (invoice #, customer, booking #), `date_from`, `date_to` (issue date), `page`, `page_size` <= 100), `GET /settings` (business defaults), `GET /prefill?booking_id=` (unsaved draft built from a booking), `GET /by-booking/{booking_id}` (invoice or `null`), `POST ""`, `GET /{id}`, `PUT /{id}`, `PATCH /{id}/status` (`ISSUED` | `CANCELLED`), `PATCH /{id}/payment` (`{amount_paid}` or `{mark_as_paid: true}`), `DELETE /{id}` (204, drafts and cancelled only), `GET /{id}/pdf?disposition=attachment|inline`.
+- Google sign-in (no bearer): `GET /api/v1/auth/google/enabled` -> `{enabled}`, `GET /api/v1/auth/google/login` (302 to Google), `GET /api/v1/auth/google/callback` (302 to `FRONTEND_URL/auth/google/complete#token=<jwt>` or `FRONTEND_URL/login?google_error=<code>`).
 - Google Calendar: `GET /api/v1/admin/integrations/google-calendar/{status,connect}`, `POST .../disconnect`, and the public OAuth `GET /api/v1/integrations/google-calendar/callback`.
 
 Set the admin's display name with `ADMIN_FULL_NAME=... python -m scripts.create_admin --reset` (optional).
 
 Errors are always `{"detail": ...}`. If deleting from R2 fails the API returns 502 and keeps the DB row.
+
+## Google sign-in for the dashboard
+
+"Continue with Google" lets allow-listed Google accounts sign in to the admin dashboard (password login keeps working). It reuses the same OAuth client as the calendar integration but requests only `openid email`. Accounts must have a verified email and appear in `GOOGLE_LOGIN_ALLOWED_EMAILS`; a missing admin user is created on first sign-in with an unusable random password.
+
+Setup:
+1. In Google Cloud -> APIs & Services -> Credentials, open the SAME OAuth client and add these Authorized redirect URIs:
+   - `http://localhost:8000/api/v1/auth/google/callback` (local)
+   - `https://api.chanthans.com/api/v1/auth/google/callback` (production)
+2. On Render set `GOOGLE_LOGIN_REDIRECT_URI` (the matching URI) and `GOOGLE_LOGIN_ALLOWED_EMAILS` (comma-separated emails); `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `FRONTEND_URL` are shared with the calendar integration.
 
 ## Google Calendar integration
 
@@ -136,6 +150,18 @@ Google Cloud setup (one time):
 6. Open the dashboard -> Integrations -> Connect Google Calendar.
 
 Render: set `APP_TIMEZONE`, `FRONTEND_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `TOKEN_ENCRYPTION_KEY` (and optionally `GOOGLE_CALENDAR_SCOPES`, `GOOGLE_CALENDAR_DEFAULT_ID`). Run `alembic upgrade head` (the pre-deploy command does) to create the `bookings` and `google_calendar_integrations` tables. New Python dependencies: `httpx`, `cryptography`, `tzdata` (all in `requirements.txt`).
+
+## Invoices
+
+One booking has one active invoice (`INV-YYYY-NNNN`, numbered by the backend; the table allows more per booking later). The backend recalculates everything from the line items: `line = qty x unit price`, `subtotal`, `- discount`, `+ tax` (`tax_rate` is a percentage, e.g. `13`), `total`, `- amount paid = balance due`. All money is `Decimal`, rounded half-up to cents. Overpayment and a discount above the subtotal are rejected.
+
+Status is stored as `DRAFT | ISSUED | PARTIALLY_PAID | PAID | CANCELLED` and follows `amount_paid` once issued. `OVERDUE` is derived (past `due_date` with a balance) and exposed as `display_status` / `is_overdue`; it is never written to the database. A booking with an invoice cannot be deleted until the invoice is deleted (drafts and cancelled invoices only; issued ones must be cancelled first).
+
+Business identity, currency, default tax, notes and terms come from the `BUSINESS_*` / `INVOICE_*` variables (see `.env.example`); tax is never assumed. `GET /admin/invoices/settings` hands the non-secret subset to the dashboard.
+
+PDFs are rendered on request (Jinja2 template `app/templates/invoice.html` -> WeasyPrint), never stored. Fonts (Inter, Cormorant Garamond, OFL) are bundled in `app/assets/fonts`. The logo is `BUSINESS_LOGO_URL`, fetched once an hour and embedded as a data URI; if it is unset or unreachable the bundled `app/assets/logo.png` is used, and without any logo the business name is shown. While rendering, only data URIs and the bundled fonts can be loaded, and user text is HTML-escaped.
+
+WeasyPrint needs the Pango system libraries: the Dockerfile installs them; locally run `brew install pango` (macOS) or `apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0` (Debian/Ubuntu). Without them the PDF endpoint answers 500 "Unable to generate the PDF" and the PDF tests are skipped. Run `alembic upgrade head` to create `invoices` and `invoice_items` (migration `0003`).
 
 ## Tests
 

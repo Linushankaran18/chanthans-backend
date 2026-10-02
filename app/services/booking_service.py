@@ -10,12 +10,14 @@ from uuid import UUID
 
 from fastapi.exceptions import RequestValidationError
 from pydantic_core import PydanticCustomError
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.exceptions import AppError, BadRequestError, NotFoundError
+from app.core.exceptions import AppError, BadRequestError, ConflictError, NotFoundError
 from app.models.booking import ALLOWED_TRANSITIONS, Booking, BookingStatus
+from app.models.invoice import Invoice
 from app.repositories.booking_repository import BookingFilters, BookingRepository
 from app.schemas.booking import (
     BookingConflict,
@@ -116,6 +118,9 @@ class BookingService:
 
     async def delete(self, booking_id: UUID) -> None:
         booking = await self.get(booking_id)
+        has_invoice = await self.session.scalar(select(func.count(Invoice.id)).where(Invoice.booking_id == booking.id))
+        if has_invoice:
+            raise ConflictError("This booking has an invoice. Cancel and delete the invoice first.")
         event_id = booking.google_calendar_event_id
         await self.repo.delete(booking)
         await self.session.commit()

@@ -10,6 +10,7 @@ from app.repositories.user_repository import UserRepository
 from app.services.calendar_sync_service import CalendarSyncService
 from app.services.google_calendar_client import GoogleCalendarClient
 from app.services.google_integration_service import GoogleIntegrationService
+from app.services.google_login_service import GoogleLoginService
 
 
 def get_google_client(settings: Settings = Depends(get_settings)) -> GoogleCalendarClient:
@@ -44,3 +45,11 @@ def get_google_integration_service(
         cipher,
         settings,
     )
+
+
+def get_google_login_service(
+    session: AsyncSession = Depends(get_session),
+    client: GoogleCalendarClient = Depends(get_google_client),
+    settings: Settings = Depends(get_settings),
+) -> GoogleLoginService:
+    return GoogleLoginService(session, UserRepository(session), client, settings)

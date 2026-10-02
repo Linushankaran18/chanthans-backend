@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice {{ v.invoice_number }}</title>
+<style>
+  @font-face { font-family: "Inter"; font-weight: 400; src: url("{{ v.fonts_url }}/inter-latin-400-normal.woff"); }
+  @font-face { font-family: "Inter"; font-weight: 500; src: url("{{ v.fonts_url }}/inter-latin-500-normal.woff"); }
+  @font-face { font-family: "Inter"; font-weight: 600; src: url("{{ v.fonts_url }}/inter-latin-600-normal.woff"); }
+  @font-face { font-family: "Cormorant Garamond"; font-weight: 400; src: url("{{ v.fonts_url }}/cormorant-garamond-latin-400-normal.woff"); }
+  @font-face { font-family: "Cormorant Garamond"; font-weight: 500; src: url("{{ v.fonts_url }}/cormorant-garamond-latin-500-normal.woff"); }
+  @font-face { font-family: "Cormorant Garamond"; font-weight: 600; src: url("{{ v.fonts_url }}/cormorant-garamond-latin-600-normal.woff"); }
+
+  :root {
+    --ink: #16151c;
+    --ink-soft: #3f3d49;
+    --mute: #6b6775;
+    --line: #e6e2ec;
+    --tint: #f8f6fb;
+    --accent: #6d2e9e;
+    --deep: #4a1d6e;
+  }
+
+  @page {
+    size: {{ v.page_size }};
+    margin: 18mm 16mm 22mm 16mm;
+    @bottom-center { content: element(page-footer); }
+  }
+
+  * { box-sizing: border-box; }
+  html { font-family: "Inter", sans-serif; font-size: 9pt; line-height: 1.5; color: var(--ink); }
+  body { margin: 0; }
+  p, dl, dd, h1, h2, h3 { margin: 0; }
+
+  .topbar {
+    position: fixed; top: -18mm; left: -16mm; right: -16mm; height: 3.2mm;
+    background: linear-gradient(90deg, #18a8e3 0%, #5a4bd0 52%, #7a2fa0 100%);
+  }
+  .page-footer {
+    position: running(page-footer);
+    border-top: 0.5pt solid var(--line); padding-top: 3mm;
+    text-align: center; font-size: 7.5pt; color: var(--mute); letter-spacing: 0.02em;
+  }
+  .watermark {
+    position: fixed; top: 95mm; left: 0; right: 0; text-align: center;
+    font-family: "Cormorant Garamond", serif; font-weight: 600; font-size: 110pt; letter-spacing: 0.08em;
+    color: rgba(22, 21, 28, 0.055); transform: rotate(-22deg);
+  }
+
+  .eyebrow { font-size: 7pt; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mute); }
+
+  /* Header */
+  .head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 6mm; border-bottom: 0.5pt solid var(--line); }
+  .brand { display: flex; align-items: flex-start; gap: 5mm; width: 100mm; }
+  .brand-text { width: 73mm; }
+  .logo { width: 22mm; height: 22mm; object-fit: contain; flex: none; }
+  .biz-name { font-family: "Cormorant Garamond", serif; font-weight: 600; font-size: 19pt; line-height: 1.05; color: var(--ink); margin-bottom: 2mm; }
+  .biz-line { font-size: 8pt; color: var(--ink-soft); line-height: 1.55; }
+
+  .title-block { text-align: right; }
+  .doc-title { font-family: "Cormorant Garamond", serif; font-weight: 500; font-size: 38pt; line-height: 0.95; letter-spacing: 0.16em; text-transform: uppercase; color: var(--deep); margin-right: -0.16em; }
+  .meta { margin-top: 5mm; display: table; margin-left: auto; }
+  .meta-row { display: table-row; }
+  .meta dt, .meta dd { display: table-cell; padding: 0.7mm 0; vertical-align: middle; }
+  .meta dt { font-size: 7pt; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); padding-right: 5mm; text-align: right; }
+  .meta dd { font-size: 9pt; font-weight: 500; text-align: right; font-feature-settings: "tnum"; }
+
+  .pill { display: inline-block; padding: 0.6mm 3mm; border-radius: 10mm; border: 0.6pt solid; font-size: 7.5pt; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .pill-draft { color: #3b4252; background: #eef0f4; border-color: #cfd4de; }
+  .pill-issued { color: #17508f; background: #e6f1fb; border-color: #aecdee; }
+  .pill-partially_paid { color: #7a4b00; background: #fdf3dc; border-color: #ecce8a; }
+  .pill-paid { color: #1f7a4d; background: #e8f5ee; border-color: #a9d9bf; }
+  .pill-overdue { color: #b4233a; background: #fbeef0; border-color: #eeb3bc; }
+  .pill-cancelled { color: #55525e; background: #f1f0f3; border-color: #cbc8d1; text-decoration: line-through; }
+
+  /* Parties */
+  .parties { display: flex; gap: 12mm; padding: 6mm 0 7mm; }
+  .party { flex: 1; min-width: 0; }
+  .party .eyebrow { margin-bottom: 2.2mm; }
+  .party-name { font-size: 11.5pt; font-weight: 600; margin-bottom: 0.8mm; }
+  .party-line { color: var(--ink-soft); }
+  .kv { display: table; width: 100%; }
+  .kv-row { display: table-row; }
+  .kv-row span { display: table-cell; padding: 0.6mm 0; }
+  .kv-row span:first-child { color: var(--mute); width: 24mm; }
+  .kv-row span:last-child { font-weight: 500; }
+
+  /* Items */
+  table.items { width: 100%; border-collapse: collapse; }
+  table.items thead { display: table-header-group; }
+  table.items th { font-size: 7pt; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mute); text-align: right; padding: 0 0 2.6mm; border-bottom: 1pt solid var(--deep); }
+  table.items th:first-child, table.items td:first-child { text-align: left; }
+  table.items td { padding: 2.9mm 0; text-align: right; border-bottom: 0.5pt solid var(--line); vertical-align: top; font-feature-settings: "tnum"; }
+  table.items tr { break-inside: avoid; }
+  table.items td.desc { font-weight: 500; padding-right: 6mm; }
+  .col-qty { width: 16mm; } .col-price { width: 30mm; } .col-amount { width: 32mm; }
+  table.items td.amount { font-weight: 600; }
+
+  /* Totals */
+  .totals-wrap { display: flex; justify-content: flex-end; margin-top: 4mm; break-inside: avoid; }
+  .totals { width: 86mm; }
+  .t-row { display: flex; justify-content: space-between; padding: 1.5mm 0; color: var(--ink-soft); font-feature-settings: "tnum"; }
+  .t-row.grand { margin-top: 1.5mm; padding-top: 3mm; border-top: 0.8pt solid var(--ink); color: var(--ink); font-size: 11pt; font-weight: 600; }
+  .t-row.paid { color: var(--ink-soft); }
+  .balance { margin-top: 3mm; background: var(--deep); color: #fff; border-radius: 2mm; padding: 4mm 5mm; display: flex; justify-content: space-between; align-items: center; }
+  .balance .label { font-size: 7.5pt; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.85; }
+  .balance .amount { font-family: "Cormorant Garamond", serif; font-weight: 600; font-size: 22pt; line-height: 1; font-feature-settings: "lnum"; }
+
+  /* Notes & terms */
+  .notes { display: flex; gap: 12mm; margin-top: 8mm; break-inside: avoid; }
+  .note { flex: 1; min-width: 0; }
+  .note .eyebrow { margin-bottom: 2mm; }
+  .note p { color: var(--ink-soft); font-size: 8.5pt; }
+</style>
+</head>
+<body>
+  <div class="topbar"></div>
+  {% if v.watermark %}<div class="watermark">{{ v.watermark }}</div>{% endif %}
+  <div class="page-footer">{{ v.footer }}</div>
+
+  <header class="head">
+    <div class="brand">
+      {% if v.logo %}<img class="logo" src="{{ v.logo }}" alt="">{% endif %}
+      <div class="brand-text">
+        <div class="biz-name">{{ v.business_name }}</div>
+        {% for line in v.business_lines %}<div class="biz-line">{{ line }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="title-block">
+      <div class="doc-title">Invoice</div>
+      <dl class="meta">
+        <div class="meta-row"><dt>Invoice no.</dt><dd>{{ v.invoice_number }}</dd></div>
+        <div class="meta-row"><dt>Issued</dt><dd>{{ v.issue_date }}</dd></div>
+        <div class="meta-row"><dt>Due</dt><dd>{{ v.due_date }}</dd></div>
+        <div class="meta-row"><dt>Status</dt><dd><span class="pill pill-{{ v.status_key }}">{{ v.status_label }}</span></dd></div>
+      </dl>
+    </div>
+  </header>
+
+  <section class="parties">
+    <div class="party">
+      <div class="eyebrow">Bill to</div>
+      <div class="party-name">{{ v.customer_name }}</div>
+      {% for line in v.customer_lines %}<div class="party-line">{{ line }}</div>{% endfor %}
+    </div>
+    <div class="party">
+      <div class="eyebrow">Session</div>
+      <div class="kv">
+        <div class="kv-row"><span>Booking</span><span>{{ v.booking_number }}</span></div>
+        <div class="kv-row"><span>Service</span><span>{{ v.service_type }}</span></div>
+        <div class="kv-row"><span>Event date</span><span>{{ v.event_date }}</span></div>
+      </div>
+    </div>
+  </section>
+
+  <table class="items">
+    <thead>
+      <tr><th>Description</th><th class="col-qty">Qty</th><th class="col-price">Unit price</th><th class="col-amount">Amount</th></tr>
+    </thead>
+    <tbody>
+      {% for line in v.lines %}
+      <tr>
+        <td class="desc">{{ line.description }}</td>
+        <td>{{ line.quantity }}</td>
+        <td>{{ line.unit_price }}</td>
+        <td class="amount">{{ line.amount }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals-wrap">
+    <div class="totals">
+      <div class="t-row"><span>Subtotal</span><span>{{ v.subtotal }}</span></div>
+      {% if v.discount %}<div class="t-row"><span>Discount</span><span>{{ v.discount }}</span></div>{% endif %}
+      {% if v.tax_label %}<div class="t-row"><span>{{ v.tax_label }}</span><span>{{ v.tax }}</span></div>{% endif %}
+      <div class="t-row grand"><span>Total</span><span>{{ v.total }}</span></div>
+      <div class="t-row paid"><span>Amount paid</span><span>{{ v.paid }}</span></div>
+      <div class="balance"><span class="label">Balance due</span><span class="amount">{{ v.balance }}</span></div>
+    </div>
+  </div>
+
+  {% if v.notes or v.terms %}
+  <section class="notes">
+    {% if v.notes %}<div class="note"><div class="eyebrow">Notes</div><p>{{ v.notes|nl2br }}</p></div>{% endif %}
+    {% if v.terms %}<div class="note"><div class="eyebrow">Payment terms</div><p>{{ v.terms|nl2br }}</p></div>{% endif %}
+  </section>
+  {% endif %}
+</body>
+</html>

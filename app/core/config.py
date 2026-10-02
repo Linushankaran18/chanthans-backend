@@ -56,8 +56,32 @@ class Settings(BaseSettings):
     google_redirect_uri: str = ""
     google_calendar_scopes: str = "openid email https://www.googleapis.com/auth/calendar.events"
     google_calendar_default_id: str = "primary"
+    # "Continue with Google" dashboard sign-in (reuses the client above). Disabled unless the
+    # redirect URI and a non-empty allow-list are both set. Allow-list: comma-separated emails.
+    google_login_redirect_uri: str = ""
+    google_login_allowed_emails: str = ""
     # Fernet key (urlsafe base64, 32 bytes) used to encrypt Google tokens at rest.
     token_encryption_key: str = ""
+
+    # Business identity and invoice defaults. Shown on invoices and used to pre-fill new ones.
+    # The studio timezone is APP_TIMEZONE (above); it is not duplicated here.
+    business_name: str = "Chanthans"
+    # Public URL of the logo (e.g. in R2). If unset or unreachable, the bundled logo is used.
+    business_logo_url: str = ""
+    business_address: str = ""
+    business_phone: str = ""
+    business_email: str = ""
+    business_website: str = ""
+    business_currency: str = "CAD"
+    invoice_prefix: str = "INV"
+    invoice_due_days: int = 14
+    # Tax is never assumed: leave blank/0 and set it per invoice, or give a studio-wide default.
+    invoice_default_tax_name: str = ""
+    invoice_default_tax_rate: float = 0
+    default_invoice_notes: str = "Thank you for choosing us to capture your special moments."
+    default_invoice_terms: str = ""
+    # "Letter" (Canada/US) or "A4"
+    invoice_page_size: str = "Letter"
 
     @model_validator(mode="after")
     def _normalize_and_validate(self) -> "Settings":
@@ -75,6 +99,16 @@ class Settings(BaseSettings):
                 Fernet(self.token_encryption_key.encode())
             except ValueError as exc:
                 raise ValueError("TOKEN_ENCRYPTION_KEY must be a valid Fernet key") from exc
+        # Env vars are single-line; allow a literal "\n" for line breaks in the address.
+        self.business_address = self.business_address.replace("\\n", "\n").strip()
+        self.business_currency = self.business_currency.strip().upper() or "CAD"
+        if len(self.business_currency) != 3 or not self.business_currency.isalpha():
+            raise ValueError("BUSINESS_CURRENCY must be a 3-letter ISO 4217 code, e.g. CAD")
+        self.invoice_prefix = self.invoice_prefix.strip().upper() or "INV"
+        if self.invoice_page_size not in ("Letter", "A4"):
+            raise ValueError("INVOICE_PAGE_SIZE must be 'Letter' or 'A4'")
+        if not 0 <= self.invoice_default_tax_rate <= 100:
+            raise ValueError("INVOICE_DEFAULT_TAX_RATE must be between 0 and 100")
         if self.storage_backend not in ("r2", "local"):
             raise ValueError("STORAGE_BACKEND must be 'r2' or 'local'")
         if self.is_production:
@@ -109,6 +143,19 @@ class Settings(BaseSettings):
                 self.google_redirect_uri,
                 self.token_encryption_key,
             )
+        )
+
+    @property
+    def google_login_allowed_set(self) -> frozenset[str]:
+        return frozenset(e.strip().lower() for e in self.google_login_allowed_emails.split(",") if e.strip())
+
+    @property
+    def google_login_enabled(self) -> bool:
+        return bool(
+            self.google_client_id
+            and self.google_client_secret
+            and self.google_login_redirect_uri
+            and self.google_login_allowed_set
         )
 
     @property

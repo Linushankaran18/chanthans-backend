@@ -65,6 +65,35 @@ class GoogleCalendarClient:
         }
         return f"{AUTH_URL}?{urlencode(params)}"
 
+    def build_login_url(self, state: str) -> str:
+        """Authorization URL for dashboard sign-in: identity scopes only, no calendar access."""
+        params = {
+            "client_id": self.settings.google_client_id,
+            "redirect_uri": self.settings.google_login_redirect_uri,
+            "response_type": "code",
+            "scope": "openid email",
+            "prompt": "select_account",
+            "state": state,
+        }
+        return f"{AUTH_URL}?{urlencode(params)}"
+
+    async def exchange_login_code(self, code: str) -> TokenSet:
+        return await self._token_request(
+            {
+                "code": code,
+                "client_id": self.settings.google_client_id,
+                "client_secret": self.settings.google_client_secret,
+                "redirect_uri": self.settings.google_login_redirect_uri,
+                "grant_type": "authorization_code",
+            }
+        )
+
+    async def get_user_profile(self, access_token: str) -> dict[str, Any]:
+        """OpenID userinfo claims (email, email_verified, name)."""
+        response = await self._request("GET", USERINFO_URL, access_token=access_token)
+        body = response.json()
+        return body if isinstance(body, dict) else {}
+
     async def exchange_code(self, code: str) -> TokenSet:
         return await self._token_request(
             {

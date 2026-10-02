@@ -28,6 +28,8 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # Lets the dashboard read the invoice PDF filename on cross-origin downloads.
+        expose_headers=["Content-Disposition"],
     )
     register_exception_handlers(app)
     if settings.storage_backend == "local":

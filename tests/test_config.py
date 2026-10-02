@@ -22,3 +22,10 @@ def test_production_rejects_weak_secret():
 def test_production_rejects_wildcard():
     with pytest.raises(ValidationError):
         Settings(database_url="sqlite+aiosqlite://", environment="production", jwt_secret="x" * 40, allowed_origins="*")
+
+
+def test_business_address_accepts_literal_backslash_n_for_line_breaks(monkeypatch):
+    from app.core.config import Settings
+
+    settings = Settings(business_address="9699 Jane St\\nVaughan, ON L6A 3R4\\nCanada")  # type: ignore[call-arg]
+    assert settings.business_address.splitlines() == ["9699 Jane St", "Vaughan, ON L6A 3R4", "Canada"]

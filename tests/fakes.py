@@ -19,6 +19,7 @@ class FakeGoogleClient(GoogleCalendarClient):
         self.exchange_refresh_token: str | None = "refresh-new"
         self.email = "studio@example.com"
         self.revoked: list[str] = []
+        self.profile: dict[str, Any] = {"email": "owner@example.com", "email_verified": True, "name": "Owner Person"}
 
     def _maybe_fail(self) -> None:
         if self.fail_with is not None:
@@ -35,6 +36,15 @@ class FakeGoogleClient(GoogleCalendarClient):
         if self.refresh_error:
             raise self.refresh_error
         return TokenSet("access-refreshed", 3600)
+
+    async def exchange_login_code(self, code: str) -> TokenSet:
+        self.calls.append(("login_exchange", code))
+        if self.exchange_error:
+            raise self.exchange_error
+        return TokenSet("login-access", 3600, None, "openid email")
+
+    async def get_user_profile(self, access_token: str) -> dict[str, Any]:
+        return dict(self.profile)
 
     async def get_user_email(self, access_token: str) -> str:
         return self.email
