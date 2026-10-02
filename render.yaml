@@ -85,9 +85,7 @@ services:
       # Invoices: business identity printed on every invoice and used to pre-fill new ones.
       - key: BUSINESS_NAME
         value: Chanthans
-      # Public logo URL (e.g. https://media.chanthans.com/brand/logo.png). Blank = bundled logo.
-      - key: BUSINESS_LOGO_URL
-        sync: false
+      # The logo is bundled in the image (app/assets/logo.png). Only set BUSINESS_LOGO_URL to override it.
       # Use a literal \n for line breaks
       - key: BUSINESS_ADDRESS
         value: "9699 Jane St\\nVaughan, ON L6A 3R4\\nCanada"
