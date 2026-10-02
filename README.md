@@ -37,6 +37,13 @@ cp .env.example .env                  # then edit
 | `R2_PUBLIC_URL` | | Public base URL of the bucket; image URL = `R2_PUBLIC_URL/<key>`. |
 | `MAX_UPLOAD_SIZE_MB` | `10` | Upload limit (HTTP 413 above it). |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins. `*` is rejected in production. |
+| `APP_TIMEZONE` | `America/Toronto` | IANA timezone of the studio (validated at startup). Used for "today", booking numbers (year) and conflict/Google event times. |
+| `FRONTEND_URL` | `http://localhost:5173` | Admin dashboard origin; users return to `FRONTEND_URL/dashboard/integrations` after Google sign-in. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | | OAuth client credentials (see below). Blank = integration disabled. |
+| `GOOGLE_REDIRECT_URI` | | Must exactly match an authorized redirect URI of the OAuth client. |
+| `GOOGLE_CALENDAR_SCOPES` | `openid email https://www.googleapis.com/auth/calendar.events` | Space-separated OAuth scopes. |
+| `GOOGLE_CALENDAR_DEFAULT_ID` | `primary` | Calendar that receives booking events. |
+| `TOKEN_ENCRYPTION_KEY` | | Fernet key encrypting Google tokens at rest. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 
 Generate a secret: `python -c "import secrets; print(secrets.token_urlsafe(64))"`.
 
@@ -104,7 +111,31 @@ Swagger UI: http://localhost:8000/docs (disabled when `ENVIRONMENT=production`).
   `GET ""`, `POST ""` (multipart: `image`, `title`, `subtitle`, `alt_text`, `display_order`, `is_active`),
   `PUT /{id}` (only supplied fields change), `PATCH /{id}/status`, `PATCH /reorder` (JSON array of `{id, display_order}`, all-or-nothing), `DELETE /{id}` (204).
 
+- `GET /api/v1/auth/me` -> `{id, email, full_name, role}`
+- Bookings (admin), prefix `/api/v1/admin/bookings`: `GET ""` (filters `status` (repeatable / comma-separated), `search`, `date_from`, `date_to`, `service_type`, `sort` = `date_desc|date_asc|created_desc`, `page`, `page_size` <= 100), `GET /service-types`, `POST ""`, `GET /{id}`, `PUT /{id}`, `PATCH /{id}/status`, `POST /{id}/calendar-sync`, `DELETE /{id}` (204).
+  Overlapping CONFIRMED bookings on the same day return `409 {"detail", "code": "booking_conflict", "conflicts": [...]}`. Invalid status transitions return 400.
+- `GET /api/v1/admin/dashboard/summary`
+- Google Calendar: `GET /api/v1/admin/integrations/google-calendar/{status,connect}`, `POST .../disconnect`, and the public OAuth `GET /api/v1/integrations/google-calendar/callback`.
+
+Set the admin's display name with `ADMIN_FULL_NAME=... python -m scripts.create_admin --reset` (optional).
+
 Errors are always `{"detail": ...}`. If deleting from R2 fails the API returns 502 and keeps the DB row.
+
+## Google Calendar integration
+
+Confirmed bookings are mirrored to the studio's Google Calendar (created on confirm, updated on edit, removed on cancel/delete). Google problems never block a booking: the booking just shows `calendar_sync_status=FAILED` and can be retried. Without the Google variables the app runs normally and the integration reports `configured: false`.
+
+Google Cloud setup (one time):
+1. <https://console.cloud.google.com> -> create or pick a project.
+2. APIs & Services -> Library -> enable **Google Calendar API**.
+3. APIs & Services -> OAuth consent screen: choose External, fill the app name and support email, add the scopes `openid`, `email` and `.../auth/calendar.events`. While the app is in *Testing*, add the studio owner's Google account under **Test users** (only test users can connect; tokens of testing apps expire after 7 days, so click "Publish app" for production use).
+4. APIs & Services -> Credentials -> Create credentials -> OAuth client ID -> **Web application**. Add these **Authorized redirect URIs**:
+   - `http://localhost:8000/api/v1/integrations/google-calendar/callback` (local)
+   - `https://api.chanthans.com/api/v1/integrations/google-calendar/callback` (production)
+5. Copy the client ID and secret into `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, set `GOOGLE_REDIRECT_URI` to the matching URI above, generate `TOKEN_ENCRYPTION_KEY` (command in the table) and set `FRONTEND_URL`.
+6. Open the dashboard -> Integrations -> Connect Google Calendar.
+
+Render: set `APP_TIMEZONE`, `FRONTEND_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `TOKEN_ENCRYPTION_KEY` (and optionally `GOOGLE_CALENDAR_SCOPES`, `GOOGLE_CALENDAR_DEFAULT_ID`). Run `alembic upgrade head` (the pre-deploy command does) to create the `bookings` and `google_calendar_integrations` tables. New Python dependencies: `httpx`, `cryptography`, `tzdata` (all in `requirements.txt`).
 
 ## Tests
 
@@ -112,7 +143,7 @@ Errors are always `{"detail": ...}`. If deleting from R2 fails the API returns 5
 pytest
 ```
 
-Tests use in-memory SQLite and a mocked R2 storage service (no network or credentials needed).
+Tests use in-memory SQLite, a mocked R2 storage service and a fake Google Calendar client (no network or credentials needed).
 
 ## Deploy to Render
 

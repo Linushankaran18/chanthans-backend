@@ -1,5 +1,8 @@
 """Application settings loaded from environment / .env."""
 from functools import lru_cache
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from cryptography.fernet import Fernet
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -42,12 +45,36 @@ class Settings(BaseSettings):
     # Kept as a plain string: comma-separated (pydantic-settings would expect JSON for list types).
     allowed_origins: str = "http://localhost:5173"
 
+    # IANA timezone of the studio; booking dates/times are studio-local wall-clock values.
+    app_timezone: str = "America/Toronto"
+    # Where the browser is sent after the Google OAuth callback (must be an allowed origin).
+    frontend_url: str = "http://localhost:5173"
+
+    # Google Calendar integration; everything stays optional (feature reports configured=false).
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""
+    google_calendar_scopes: str = "openid email https://www.googleapis.com/auth/calendar.events"
+    google_calendar_default_id: str = "primary"
+    # Fernet key (urlsafe base64, 32 bytes) used to encrypt Google tokens at rest.
+    token_encryption_key: str = ""
+
     @model_validator(mode="after")
     def _normalize_and_validate(self) -> "Settings":
         self.database_url = normalize_database_url(self.database_url)
         self.r2_public_url = self.r2_public_url.rstrip("/")
         self.local_media_url = self.local_media_url.rstrip("/")
+        self.frontend_url = self.frontend_url.rstrip("/")
         self.storage_backend = self.storage_backend.lower()
+        try:
+            ZoneInfo(self.app_timezone)
+        except (ZoneInfoNotFoundError, ValueError, OSError) as exc:
+            raise ValueError("APP_TIMEZONE must be a valid IANA timezone, e.g. America/Toronto") from exc
+        if self.token_encryption_key:
+            try:
+                Fernet(self.token_encryption_key.encode())
+            except ValueError as exc:
+                raise ValueError("TOKEN_ENCRYPTION_KEY must be a valid Fernet key") from exc
         if self.storage_backend not in ("r2", "local"):
             raise ValueError("STORAGE_BACKEND must be 'r2' or 'local'")
         if self.is_production:
@@ -68,6 +95,21 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def timezone(self) -> ZoneInfo:
+        return ZoneInfo(self.app_timezone)
+
+    @property
+    def google_configured(self) -> bool:
+        return all(
+            (
+                self.google_client_id,
+                self.google_client_secret,
+                self.google_redirect_uri,
+                self.token_encryption_key,
+            )
+        )
 
     @property
     def max_upload_size_bytes(self) -> int:

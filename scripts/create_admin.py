@@ -1,7 +1,7 @@
 """Create an admin user. Run: python -m scripts.create_admin
 Reset a forgotten password:  python -m scripts.create_admin --reset
 
-Reads ADMIN_EMAIL / ADMIN_PASSWORD from the environment, or prompts for them.
+Reads ADMIN_EMAIL / ADMIN_PASSWORD (and optional ADMIN_FULL_NAME) from the environment, or prompts for them.
 """
 import asyncio
 import getpass
@@ -16,18 +16,20 @@ from app.repositories.user_repository import UserRepository
 MIN_PASSWORD_LENGTH = 12
 
 
-async def create_admin(email: str, password: str, reset: bool = False) -> None:
+async def create_admin(email: str, password: str, reset: bool = False, full_name: str | None = None) -> None:
     async with get_sessionmaker()() as session:
         repo = UserRepository(session)
         existing = await repo.get_by_email(email)
         if existing and reset:
             existing.password_hash = hash_password(password)
+            if full_name:
+                existing.full_name = full_name
             await session.commit()
             print(f"Password reset for {email}")
             return
         if existing:
             sys.exit(f"User {email} already exists (use --reset to change the password)")
-        await repo.add(User(email=email, password_hash=hash_password(password), role=ADMIN_ROLE))
+        await repo.add(User(email=email, password_hash=hash_password(password), role=ADMIN_ROLE, full_name=full_name))
         await session.commit()
     print(f"Admin {email} created")
 
@@ -39,7 +41,9 @@ def main() -> None:
         sys.exit("Invalid email")
     if len(password) < MIN_PASSWORD_LENGTH:
         sys.exit(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
-    asyncio.run(create_admin(email, password, reset="--reset" in sys.argv))
+    asyncio.run(
+        create_admin(email, password, reset="--reset" in sys.argv, full_name=os.environ.get("ADMIN_FULL_NAME") or None)
+    )
 
 
 if __name__ == "__main__":

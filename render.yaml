@@ -50,3 +50,27 @@ services:
       # Public URL of the bucket, no trailing slash, e.g. https://media.example.com
       - key: R2_PUBLIC_URL
         sync: false
+
+      # Studio timezone (IANA). Booking times are studio-local wall-clock values.
+      - key: APP_TIMEZONE
+        value: America/Toronto
+
+      # Admin dashboard origin used for the post-Google-sign-in redirect, e.g. https://dashboard.chanthans.com
+      - key: FRONTEND_URL
+        sync: false
+
+      # Google Calendar integration (see README "Google Calendar integration")
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # https://api.chanthans.com/api/v1/integrations/google-calendar/callback
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_CALENDAR_SCOPES
+        value: openid email https://www.googleapis.com/auth/calendar.events
+      - key: GOOGLE_CALENDAR_DEFAULT_ID
+        value: primary
+      # Fernet key; generate once and keep it stable (changing it forces Google to be reconnected).
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
