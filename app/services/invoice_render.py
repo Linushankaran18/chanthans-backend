@@ -183,11 +183,10 @@ def build_view(invoice: Invoice, settings: Settings, today: date, logo: str | No
     business_lines = _compact(
         *(settings.business_address.splitlines()),
         settings.business_phone,
-        settings.business_email,
         settings.business_website,
     )
     footer = "  ·  ".join(
-        _compact(settings.business_name, settings.business_website, settings.business_email, settings.business_phone)
+        _compact(settings.business_name, settings.business_website, settings.business_phone)
     )
     return InvoiceView(
         page_size=settings.invoice_page_size,
