@@ -59,6 +59,10 @@ services:
       - key: FRONTEND_URL
         sync: false
 
+      # Public base of team share links, e.g. https://chanthans.com/event (blank = dashboard /share page)
+      - key: SHARE_BASE_URL
+        sync: false
+
       # Google Calendar integration (see README "Google Calendar integration")
       - key: GOOGLE_CLIENT_ID
         sync: false

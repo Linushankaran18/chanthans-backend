@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.exceptions import RequestValidationError
 
+from app.core.config import Settings, get_settings
 from app.dependencies.auth import require_admin
 from app.dependencies.booking import get_booking_service
 from app.models.booking import Booking, BookingStatus
@@ -17,6 +18,7 @@ from app.schemas.booking import (
     BookingSummary,
     BookingUpdate,
 )
+from app.schemas.share import ShareLink
 from app.services.booking_service import BookingService
 
 router = APIRouter(
@@ -99,7 +101,7 @@ async def update_booking(
 async def set_booking_status(
     booking_id: UUID, body: BookingStatusUpdate, service: BookingService = Depends(get_booking_service)
 ) -> Booking:
-    return await service.set_status(booking_id, body.status)
+    return await service.set_status(booking_id, body.status, body.allow_overlap)
 
 
 @router.post("/{booking_id}/calendar-sync", response_model=BookingDetail)
@@ -110,6 +112,41 @@ async def sync_booking_calendar(
 
 
 @router.delete("/{booking_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_booking(booking_id: UUID, service: BookingService = Depends(get_booking_service)) -> Response:
-    await service.delete(booking_id)
+async def delete_booking(
+    booking_id: UUID,
+    delete_invoice: bool = Query(False, description="Also delete a draft/cancelled invoice of this booking."),
+    service: BookingService = Depends(get_booking_service),
+) -> Response:
+    await service.delete(booking_id, delete_invoice)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _share_url(settings: Settings, token: str) -> str:
+    base = settings.share_base_url or f"{settings.frontend_url}/share"
+    return f"{base}/{token}"
+
+
+@router.post("/{booking_id}/share", response_model=ShareLink)
+async def enable_booking_share(
+    booking_id: UUID,
+    service: BookingService = Depends(get_booking_service),
+    settings: Settings = Depends(get_settings),
+) -> ShareLink:
+    booking = await service.enable_share(booking_id)
+    return ShareLink(url=_share_url(settings, str(booking.share_token)))
+
+
+@router.get("/{booking_id}/share", response_model=ShareLink | None)
+async def get_booking_share(
+    booking_id: UUID,
+    service: BookingService = Depends(get_booking_service),
+    settings: Settings = Depends(get_settings),
+) -> ShareLink | None:
+    booking = await service.get(booking_id)
+    return ShareLink(url=_share_url(settings, booking.share_token)) if booking.share_token else None
+
+
+@router.delete("/{booking_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_booking_share(booking_id: UUID, service: BookingService = Depends(get_booking_service)) -> Response:
+    await service.revoke_share(booking_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

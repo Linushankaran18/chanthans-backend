@@ -77,3 +77,5 @@ class Booking(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     calendar_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     calendar_sync_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Unguessable token behind the read-only team share link; NULL = not shared / revoked.
+    share_token: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)

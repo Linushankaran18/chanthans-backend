@@ -84,6 +84,8 @@ class BookingCreate(_BookingInput):
     deposit_amount: Money | None = None
     delivery_due_date: date | None = None
     notes: str | None = Field(None, max_length=5000)
+    # Owner explicitly accepts overlapping a confirmed booking. Not stored.
+    allow_overlap: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> "BookingCreate":
@@ -106,6 +108,7 @@ class BookingUpdate(_BookingInput):
     deposit_amount: Money | None = None
     delivery_due_date: date | None = None
     notes: str | None = Field(None, max_length=5000)
+    allow_overlap: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> "BookingUpdate":
@@ -118,6 +121,7 @@ class BookingUpdate(_BookingInput):
 
 class BookingStatusUpdate(BaseModel):
     status: BookingStatus
+    allow_overlap: bool = False
 
 
 class BookingSummary(BaseModel):
@@ -159,6 +163,13 @@ class BookingSummary(BaseModel):
 class BookingDetail(BookingSummary):
     notes: str | None
     google_calendar_event_id: str | None
+    # Read from the ORM row but never serialised; only `is_shared` is exposed.
+    share_token: str | None = Field(None, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_shared(self) -> bool:
+        return bool(self.share_token)
 
 
 class BookingPage(BaseModel):

@@ -86,6 +86,9 @@ class BookingRepository:
     async def get(self, booking_id: UUID) -> Booking | None:
         return await self.session.get(Booking, booking_id)
 
+    async def get_by_share_token(self, token: str) -> Booking | None:
+        return await self.session.scalar(select(Booking).where(Booking.share_token == token))
+
     async def add(self, booking: Booking) -> Booking:
         self.session.add(booking)
         await self.session.flush()
