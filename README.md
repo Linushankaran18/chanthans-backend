@@ -38,6 +38,7 @@ cp .env.example .env                  # then edit
 | `MAX_UPLOAD_SIZE_MB` | `10` | Upload limit (HTTP 413 above it). |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins. `*` is rejected in production. |
 | `APP_TIMEZONE` | `America/Toronto` | IANA timezone of the studio (validated at startup). Used for "today", booking numbers (year) and conflict/Google event times. |
+| `SHARE_BASE_URL` | blank | Base of team share links (`<base>/<token>`), e.g. `https://chanthans.com/event`. Blank = `FRONTEND_URL/share`. The website origin must be in `ALLOWED_ORIGINS` (the page calls the public API). |
 | `FRONTEND_URL` | `http://localhost:5173` | Admin dashboard origin; users return to `FRONTEND_URL/dashboard/integrations` after Google sign-in. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | | OAuth client credentials (see below). Blank = integration disabled. |
 | `GOOGLE_REDIRECT_URI` | | Must exactly match an authorized redirect URI of the OAuth client. |
@@ -116,6 +117,10 @@ Swagger UI: http://localhost:8000/docs (disabled when `ENVIRONMENT=production`).
 - `GET /api/v1/auth/me` -> `{id, email, full_name, role}`
 - Bookings (admin), prefix `/api/v1/admin/bookings`: `GET ""` (filters `status` (repeatable / comma-separated), `search`, `date_from`, `date_to`, `service_type`, `sort` = `date_desc|date_asc|created_desc`, `page`, `page_size` <= 100), `GET /service-types`, `POST ""`, `GET /{id}`, `PUT /{id}`, `PATCH /{id}/status`, `POST /{id}/calendar-sync`, `DELETE /{id}` (204).
   Overlapping CONFIRMED bookings on the same day return `409 {"detail", "code": "booking_conflict", "conflicts": [...]}`. Invalid status transitions return 400.
+  Send `"allow_overlap": true` (create, update, and `PATCH /{id}/status` bodies) to knowingly keep an overlap; it is never stored. Only CONFIRMED bookings conflict, so inquiries/pending ones can share a slot.
+  `DELETE /{id}?delete_invoice=true` also removes the booking's draft/cancelled invoice; an issued or paid invoice always blocks the delete (`409 {"code": "booking_has_invoice"}`).
+  Team share link: `POST /{id}/share` (idempotent, returns `{url}` = `SHARE_BASE_URL/<token>`, default `FRONTEND_URL/share/<token>`), `GET /{id}/share` (`{url}` or `null`), `DELETE /{id}/share` (revoke; a new link gets a new token). Bookings expose `is_shared`.
+- Public share (no auth, token only): `GET /api/v1/shared-events/{token}` -> service, customer name, date, times, venue, status (never amounts, phone, email or notes) and `GET /api/v1/shared-events/{token}/calendar.ics`. Revoked, unknown and expired links (the day after the event) all return the same 404. Needs migration `0004`.
 - `GET /api/v1/admin/dashboard/summary`
 - Invoices (admin), prefix `/api/v1/admin/invoices`: `GET ""` (filters `status` (repeatable / comma-separated, `OVERDUE` allowed), `overdue`, `search` (invoice #, customer, booking #), `date_from`, `date_to` (issue date), `page`, `page_size` <= 100), `GET /settings` (business defaults), `GET /prefill?booking_id=` (unsaved draft built from a booking), `GET /by-booking/{booking_id}` (invoice or `null`), `POST ""`, `GET /{id}`, `PUT /{id}`, `PATCH /{id}/status` (`ISSUED` | `CANCELLED`), `PATCH /{id}/payment` (`{amount_paid}` or `{mark_as_paid: true}`), `DELETE /{id}` (204, drafts and cancelled only), `GET /{id}/pdf?disposition=attachment|inline`.
 - Google sign-in (no bearer): `GET /api/v1/auth/google/enabled` -> `{enabled}`, `GET /api/v1/auth/google/login` (302 to Google), `GET /api/v1/auth/google/callback` (302 to `FRONTEND_URL/auth/google/complete#token=<jwt>` or `FRONTEND_URL/login?google_error=<code>`).

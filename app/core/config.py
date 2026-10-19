@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     app_timezone: str = "America/Toronto"
     # Where the browser is sent after the Google OAuth callback (must be an allowed origin).
     frontend_url: str = "http://localhost:5173"
+    # Public base of team share links, e.g. https://chanthans.com/event (the link is <base>/<token>).
+    # Blank = FRONTEND_URL/share, i.e. the dashboard's own share page.
+    share_base_url: str = ""
 
     # Google Calendar integration; everything stays optional (feature reports configured=false).
     google_client_id: str = ""
@@ -89,6 +92,7 @@ class Settings(BaseSettings):
         self.r2_public_url = self.r2_public_url.rstrip("/")
         self.local_media_url = self.local_media_url.rstrip("/")
         self.frontend_url = self.frontend_url.rstrip("/")
+        self.share_base_url = self.share_base_url.strip().rstrip("/")
         self.storage_backend = self.storage_backend.lower()
         try:
             ZoneInfo(self.app_timezone)
